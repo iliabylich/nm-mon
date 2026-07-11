@@ -123,7 +123,7 @@ impl NM {
             && let Some(ssid) = self.last_ssid.clone()
             && let Some(strength) = self.last_strength
         {
-            events.push(Event::NetworkSsidAndStrength { ssid, strength });
+            events.push(Event::SsidAndStrength { ssid, strength });
         }
     }
 

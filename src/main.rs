@@ -31,6 +31,10 @@ use nm::NM;
 mod dbus;
 use dbus::DBus;
 
+mod server;
+
+mod client;
+
 fn main() -> Result<()> {
     env_logger::Builder::from_default_env()
         .write_style(env_logger::WriteStyle::Always)

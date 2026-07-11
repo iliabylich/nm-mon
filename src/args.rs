@@ -50,7 +50,6 @@ impl Args {
         Self { mode }
     }
 
-    #[expect(dead_code)]
     pub(crate) fn get_server_fd(&self) -> Result<OwnedFd> {
         match self.mode {
             RunMode::Systemd => systemd_socket(),
