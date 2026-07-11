@@ -1,4 +1,4 @@
-use crate::nm::event::Event;
+use nm_mon::Event;
 
 #[derive(Debug)]
 enum OneWaySpeed {
@@ -7,8 +7,6 @@ enum OneWaySpeed {
 }
 
 impl OneWaySpeed {
-    const THRESHOLD: u64 = 5_000;
-
     const fn update(&mut self, current: u64) -> u64 {
         match self {
             Self::Unset => {
@@ -16,11 +14,8 @@ impl OneWaySpeed {
                 0
             }
             Self::Set(prev) => {
-                let mut d = current.saturating_sub(*prev);
+                let d = current.saturating_sub(*prev);
                 *self = Self::Set(current);
-                if d < Self::THRESHOLD {
-                    d = 0;
-                }
                 d
             }
         }

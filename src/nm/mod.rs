@@ -1,7 +1,7 @@
 use crate::dbus_queue::DBusQueue;
 use active_access_point::{ActiveAccessPoint, ActiveAccessPointEvent};
-pub use event::Event;
 use mini_sansio_dbus::IncomingMessage;
+use nm_mon::Event;
 use primary_device::{PrimaryDevice, PrimaryDeviceEvent};
 use speed::Speed;
 use ssid_and_strength::{SsidAndStrength, SsidAndStrengthEvent};
@@ -10,7 +10,6 @@ use wireless_connection::{WirelessConnection, WirelessConnectionEvent};
 
 mod active_access_point;
 mod active_connection_type;
-mod event;
 mod primary_connection;
 mod primary_device;
 mod speed;

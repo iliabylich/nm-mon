@@ -7,7 +7,7 @@ pub enum Event {
 
 #[allow(dead_code)]
 impl Event {
-    const SERIALIZED_LENGTH: usize = 32;
+    pub const SERIALIZED_LENGTH: usize = 32;
     const MAX_SSID_BYTESIZE: usize = 20;
 
     #[expect(
@@ -15,7 +15,7 @@ impl Event {
         clippy::arithmetic_side_effects,
         clippy::cast_possible_truncation
     )]
-    pub(crate) fn serialize(&self) -> [u8; Self::SERIALIZED_LENGTH] {
+    pub fn serialize(&self) -> [u8; Self::SERIALIZED_LENGTH] {
         let mut out = [0; Self::SERIALIZED_LENGTH];
 
         match self {
@@ -56,47 +56,45 @@ impl Event {
 
         out
     }
+
+    pub fn deserialize(buf: [u8; Event::SERIALIZED_LENGTH]) -> Event {
+        match buf[0] {
+            1 => Event::UploadSpeed {
+                bytes_per_sec: u64::from_be_bytes([
+                    buf[8], buf[9], buf[10], buf[11], buf[12], buf[13], buf[14], buf[15],
+                ]),
+            },
+
+            2 => Event::DownloadSpeed {
+                bytes_per_sec: u64::from_be_bytes([
+                    buf[8], buf[9], buf[10], buf[11], buf[12], buf[13], buf[14], buf[15],
+                ]),
+            },
+
+            3 => Event::SsidAndStrength {
+                ssid: {
+                    let len = u32::from_be_bytes([buf[4], buf[5], buf[6], buf[7]]) as usize;
+                    let bytes = &buf[8..][..len];
+                    core::str::from_utf8(bytes).unwrap().to_string()
+                },
+                strength: buf[1],
+            },
+
+            _ => unreachable!(),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::Event;
 
-    fn deserialize(bytes: [u8; Event::SERIALIZED_LENGTH]) -> Event {
-        match bytes[0] {
-            1 => Event::UploadSpeed {
-                bytes_per_sec: u64::from_be_bytes([
-                    bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14],
-                    bytes[15],
-                ]),
-            },
-
-            2 => Event::DownloadSpeed {
-                bytes_per_sec: u64::from_be_bytes([
-                    bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14],
-                    bytes[15],
-                ]),
-            },
-
-            3 => Event::SsidAndStrength {
-                ssid: {
-                    let len = u32::from_be_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]) as usize;
-                    let bytes = &bytes[8..][..len];
-                    core::str::from_utf8(bytes).unwrap().to_string()
-                },
-                strength: bytes[1],
-            },
-
-            _ => unreachable!(),
-        }
-    }
-
     #[test]
     fn test_upload_speed() {
         let e = Event::UploadSpeed {
             bytes_per_sec: 0x0123456789ABCDEF,
         };
-        assert_eq!(deserialize(e.serialize()), e);
+        assert_eq!(Event::deserialize(e.serialize()), e);
     }
 
     #[test]
@@ -104,7 +102,7 @@ mod tests {
         let e = Event::DownloadSpeed {
             bytes_per_sec: 0x0123456789ABCDEF,
         };
-        assert_eq!(deserialize(e.serialize()), e);
+        assert_eq!(Event::deserialize(e.serialize()), e);
     }
 
     #[test]
@@ -113,7 +111,7 @@ mod tests {
             ssid: String::from("foo"),
             strength: 42,
         };
-        assert_eq!(deserialize(e.serialize()), e);
+        assert_eq!(Event::deserialize(e.serialize()), e);
     }
 
     #[test]
@@ -128,6 +126,6 @@ mod tests {
             ssid: "ᔘ".repeat(6),
             strength: 10,
         };
-        assert_eq!(deserialize(full.serialize()), truncated);
+        assert_eq!(Event::deserialize(full.serialize()), truncated);
     }
 }

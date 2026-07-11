@@ -1,5 +1,6 @@
-use crate::{args::Args, client::Client, nm::Event};
+use crate::{args::Args, client::Client};
 use anyhow::{Context as _, Result};
+use nm_mon::Event;
 use rustix::event::{PollFd, PollFlags};
 use std::{
     collections::HashMap,
@@ -11,7 +12,6 @@ pub struct Server {
     fd_to_client: HashMap<i32, Client>,
 }
 
-#[expect(dead_code)]
 impl Server {
     pub(crate) fn new(args: &Args) -> Result<Self> {
         Ok(Self {
@@ -35,6 +35,10 @@ impl Server {
     }
 
     pub(crate) fn broadcast(&mut self, event: &Event) {
+        if self.fd_to_client.is_empty() {
+            return;
+        }
+
         log::info!("Sending {event:?} to {} clients..", self.fd_to_client.len());
 
         let mut fds_to_drop = vec![];
@@ -51,11 +55,23 @@ impl Server {
         }
     }
 
-    pub(crate) fn reply(&mut self, fd: i32, event: &Event) {
+    pub(crate) fn read_client(&mut self, fd: i32) -> bool {
+        let Some(client) = self.fd_to_client.get(&fd) else {
+            return false;
+        };
+        if let Err(err) = client.read() {
+            log::error!("{err:?}");
+            self.fd_to_client.remove(&fd);
+            return false;
+        }
+
+        true
+    }
+
+    pub(crate) fn write_client(&mut self, fd: i32, event: &Event) {
         let Some(client) = self.fd_to_client.get(&fd) else {
             return;
         };
-        log::info!("Sending {event:?} to client {fd}..");
 
         if let Err(err) = client.write(event) {
             log::error!("{err:?}");
