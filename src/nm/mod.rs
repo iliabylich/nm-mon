@@ -1,0 +1,160 @@
+use crate::dbus_queue::DBusQueue;
+use active_access_point::{ActiveAccessPoint, ActiveAccessPointEvent};
+pub use event::Event;
+use mini_sansio_dbus::IncomingMessage;
+use primary_device::{PrimaryDevice, PrimaryDeviceEvent};
+use speed::Speed;
+use ssid_and_strength::{SsidAndStrength, SsidAndStrengthEvent};
+use tx_rx::{TxRx, TxRxEvent};
+use wireless_connection::{WirelessConnection, WirelessConnectionEvent};
+
+mod active_access_point;
+mod active_connection_type;
+mod event;
+mod primary_connection;
+mod primary_device;
+mod speed;
+mod ssid_and_strength;
+mod tx_rx;
+mod wireless_connection;
+
+pub struct NM {
+    wireless_connection: WirelessConnection,
+    primary_device: PrimaryDevice,
+    active_access_point: ActiveAccessPoint,
+    tx_rx: TxRx,
+    speed: Speed,
+    ssid_and_strength: SsidAndStrength,
+
+    last_ssid: Option<String>,
+    last_strength: Option<u8>,
+}
+
+impl NM {
+    pub(crate) fn new(q: &mut DBusQueue) -> Self {
+        let mut this = Self {
+            wireless_connection: WirelessConnection::new(),
+            primary_device: PrimaryDevice::new(),
+            active_access_point: ActiveAccessPoint::new(),
+            tx_rx: TxRx::new(),
+            speed: Speed::new(),
+            ssid_and_strength: SsidAndStrength::new(),
+            last_ssid: None,
+            last_strength: None,
+        };
+
+        this.init(q);
+
+        this
+    }
+
+    fn init(&mut self, q: &mut DBusQueue) {
+        self.wireless_connection.start(q);
+    }
+
+    fn on_wireless_connection_event(&mut self, e: WirelessConnectionEvent, q: &mut DBusQueue) {
+        match e {
+            WirelessConnectionEvent::Connected(path) => {
+                self.primary_device.start(path, q);
+            }
+            WirelessConnectionEvent::Disconnected => {
+                self.primary_device.stop(q);
+            }
+        }
+    }
+
+    fn on_primary_device_event(&mut self, e: PrimaryDeviceEvent, q: &mut DBusQueue) {
+        match e {
+            PrimaryDeviceEvent::Connected(path) => {
+                self.active_access_point.start(path.clone(), q);
+                self.speed.reset();
+                self.tx_rx.start(path, q);
+            }
+            PrimaryDeviceEvent::Disconnected => {
+                self.active_access_point.stop(q);
+                self.speed.reset();
+                self.tx_rx.stop(q);
+            }
+        }
+    }
+
+    fn on_active_access_point_event(&mut self, e: ActiveAccessPointEvent, q: &mut DBusQueue) {
+        match e {
+            ActiveAccessPointEvent::Connected(path) => {
+                self.ssid_and_strength.start(path, q);
+            }
+            ActiveAccessPointEvent::Disconnected => {
+                self.ssid_and_strength.stop(q);
+            }
+        }
+    }
+
+    fn on_tx_rx_event(&mut self, e: TxRxEvent, events: &mut Vec<Event>) {
+        if let Some(tx) = e.tx {
+            let event = self.speed.update_tx(tx);
+            events.push(event);
+        }
+
+        if let Some(rx) = e.rx {
+            let event = self.speed.update_rx(rx);
+            events.push(event);
+        }
+    }
+
+    #[expect(clippy::useless_let_if_seq)]
+    fn on_ssid_and_strength_event(&mut self, e: SsidAndStrengthEvent, events: &mut Vec<Event>) {
+        let mut got_diff = false;
+
+        if let Some(ssid) = e.ssid
+            && self.last_ssid != Some(ssid.clone())
+        {
+            self.last_ssid = Some(ssid);
+            got_diff = true;
+        }
+
+        if let Some(strength) = e.strength
+            && self.last_strength != Some(strength)
+        {
+            self.last_strength = Some(strength);
+            got_diff = true;
+        }
+
+        if got_diff
+            && let Some(ssid) = self.last_ssid.clone()
+            && let Some(strength) = self.last_strength
+        {
+            events.push(Event::NetworkSsidAndStrength { ssid, strength });
+        }
+    }
+
+    pub(crate) fn handle(
+        &mut self,
+        message: IncomingMessage<'_>,
+        events: &mut Vec<Event>,
+        q: &mut DBusQueue,
+    ) {
+        if let Some(e) = self.wireless_connection.handle(message, q) {
+            self.on_wireless_connection_event(e, q);
+            return;
+        }
+
+        if let Some(e) = self.primary_device.handle(message, q) {
+            self.on_primary_device_event(e, q);
+            return;
+        }
+
+        if let Some(e) = self.active_access_point.handle(message, q) {
+            self.on_active_access_point_event(e, q);
+            return;
+        }
+
+        if let Some(e) = self.tx_rx.handle(message, q) {
+            self.on_tx_rx_event(e, events);
+            return;
+        }
+
+        if let Some(e) = self.ssid_and_strength.handle(message, q) {
+            self.on_ssid_and_strength_event(e, events);
+        }
+    }
+}

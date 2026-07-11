@@ -1,0 +1,91 @@
+use crate::{
+    dbus_queue::DBusQueue,
+    nm::{
+        active_connection_type::ActiveConnectionType,
+        primary_connection::{PrimaryConnection, PrimaryConnectionEvent},
+    },
+};
+use mini_sansio_dbus::IncomingMessage;
+
+#[derive(Default)]
+enum State {
+    #[default]
+    Disconnected,
+    ConnectedAndHavePath,
+    ConnectedAndHavePathAndType,
+}
+
+pub struct WirelessConnection {
+    primary_connection: PrimaryConnection,
+    active_connection_type: ActiveConnectionType,
+    state: State,
+}
+
+#[derive(Debug)]
+pub enum WirelessConnectionEvent {
+    Connected(String),
+    Disconnected,
+}
+
+impl WirelessConnection {
+    pub(crate) fn new() -> Self {
+        Self {
+            primary_connection: PrimaryConnection::new(),
+            active_connection_type: ActiveConnectionType::new(),
+            state: State::default(),
+        }
+    }
+
+    pub(crate) fn start(&mut self, q: &mut DBusQueue) {
+        self.primary_connection.start(q);
+    }
+
+    fn on_primary_connection_event(
+        &mut self,
+        e: PrimaryConnectionEvent,
+        q: &mut DBusQueue,
+    ) -> Option<WirelessConnectionEvent> {
+        match e {
+            PrimaryConnectionEvent::Connected(path) => {
+                self.active_connection_type.start(path, q);
+                self.state = State::ConnectedAndHavePath;
+                None
+            }
+            PrimaryConnectionEvent::Disconnected => {
+                self.active_connection_type.stop(q);
+                self.state = State::Disconnected;
+                Some(WirelessConnectionEvent::Disconnected)
+            }
+        }
+    }
+
+    fn on_active_connection_type_received(
+        &mut self,
+        is_wireless: bool,
+        path: String,
+    ) -> WirelessConnectionEvent {
+        if is_wireless {
+            self.state = State::ConnectedAndHavePathAndType;
+            WirelessConnectionEvent::Connected(path)
+        } else {
+            self.state = State::Disconnected;
+            WirelessConnectionEvent::Disconnected
+        }
+    }
+
+    pub(crate) fn handle(
+        &mut self,
+        message: IncomingMessage<'_>,
+        q: &mut DBusQueue,
+    ) -> Option<WirelessConnectionEvent> {
+        if let Some(e) = self.primary_connection.handle(message, q) {
+            return self.on_primary_connection_event(e, q);
+        }
+
+        if let Some((is_wireless, path)) = self.active_connection_type.handle(message, q) {
+            return Some(self.on_active_connection_type_received(is_wireless, path));
+        }
+
+        None
+    }
+}
