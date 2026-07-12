@@ -93,7 +93,7 @@ impl Connected {
         true
     }
 
-    fn wants_write(&mut self, readbuf: &mut [u8], queue: &DBusQueue) -> Result<bool> {
+    fn wants_write(&self, readbuf: &mut [u8], queue: &DBusQueue) -> Result<bool> {
         let (_read, write) = self.conn.wants(queue, readbuf)?;
         Ok(write.is_some())
     }
@@ -171,11 +171,7 @@ impl DBus {
         })
     }
 
-    pub(crate) fn as_pollfd(
-        &mut self,
-        readbuf: &mut [u8],
-        queue: &DBusQueue,
-    ) -> Result<PollFd<'_>> {
+    pub(crate) fn as_pollfd(&self, readbuf: &mut [u8], queue: &DBusQueue) -> Result<PollFd<'_>> {
         let mut flags = PollFlags::empty();
         if self.wants_read(readbuf)? {
             flags |= PollFlags::IN;
@@ -208,8 +204,8 @@ impl DBus {
         }
     }
 
-    pub(crate) fn wants_write(&mut self, readbuf: &mut [u8], queue: &DBusQueue) -> Result<bool> {
-        match &mut self.state {
+    pub(crate) fn wants_write(&self, readbuf: &mut [u8], queue: &DBusQueue) -> Result<bool> {
+        match &self.state {
             State::Connecting(connecting) => connecting.wants_write(readbuf),
             State::Connected(connected) => connected.wants_write(readbuf, queue),
         }
