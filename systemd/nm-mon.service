@@ -1,0 +1,8 @@
+[Unit]
+Description=NM monitor service
+Requires=nm-mon.socket dbus.service NetworkManager.service
+After=nm-mon.socket dbus.service NetworkManager.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/nm-mon --systemd
