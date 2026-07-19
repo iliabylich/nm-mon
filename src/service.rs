@@ -31,7 +31,7 @@ impl NmMonService {
     }
 }
 
-impl Service for NmMonService {
+impl Service<1> for NmMonService {
     type Error = NmMonServiceError;
 
     fn pollfds(&mut self) -> Result<impl Iterator<Item = PollFd<'_>>, Self::Error> {
@@ -74,12 +74,15 @@ impl Service for NmMonService {
         Err(anyhow::anyhow!("DBus poll error: got revents {revents:?}").into())
     }
 
-    fn state_as_serialized_bufs(&self) -> impl Iterator<Item = Vec<u8>> {
-        let mut bufs = vec![];
+    fn on_client_connected(&mut self, mut write: impl FnMut(Vec<u8>)) -> Result<(), Self::Error> {
         if let Some(last_ssid_and_strength_event) = &self.last_ssid_and_strength_event {
-            bufs.push(last_ssid_and_strength_event.serialize().to_vec());
+            (write)(last_ssid_and_strength_event.serialize().to_vec());
         }
-        bufs.into_iter()
+        Ok(())
+    }
+
+    fn on_client_request(&mut self, _request: [u8; 1]) -> Result<(), Self::Error> {
+        Ok(())
     }
 }
 
