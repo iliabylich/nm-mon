@@ -2,6 +2,7 @@ use crate::{dbus_queue::DBusQueue, infallible_property::InfalliblePropertyGetAnd
 use mini_sansio_dbus::{
     DBusError, IncomingMessage, OutgoingQueue as _,
     messages::network_manager::{RefreshRateMs, RxBytes, TxBytes},
+    messaging::DBusEncode,
 };
 
 pub struct TxRx {
@@ -64,7 +65,7 @@ struct Configure;
 impl Configure {
     fn send(path: &str, q: &mut DBusQueue) -> Result<(), DBusError> {
         let mut buf = [0; 1_024];
-        let encoded = RefreshRateMs::encode_set_property(&mut buf, path, 1_000)?;
+        let encoded = RefreshRateMs::encode((path, 1_000), &mut buf)?;
         q.push_raw(encoded);
         Ok(())
     }
