@@ -13,7 +13,7 @@ const USAGE: &str = "
 Usage: nm-mon [--systemd|--dev]
 
 --systemd: runs daemon under systemd and expects it to pass a socket via sd_listen_fds()
-    --dev: starts listening on /run/nm-mon-dev.sock
+    --dev: starts listening on ./nm-mon-dev.sock
 ";
 fn print_usage_and_exit() -> ! {
     eprintln!("{USAGE}");

@@ -37,7 +37,7 @@ fn main() -> Result<()> {
 
     let mut rt = match args.mode {
         RunMode::Systemd => Runtime::new_with_systemd_socket(service),
-        RunMode::Dev => Runtime::new_with_socket_path("/run/nm-mon-dev.sock", service),
+        RunMode::Dev => Runtime::new_with_socket_path("nm-mon-dev.sock", service),
     }?;
 
     loop {
